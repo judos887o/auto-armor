@@ -1,113 +1,46 @@
+--// ARMOR BOT CLEAN (OHNE GUI & INTRO) //--
+
 local UserInputService = game:GetService("UserInputService")
 local player = game:GetService("Players").LocalPlayer
 local isScriptActive = true
 
+-- HIER KANNST DU DIE WERTE ANPASSEN
+local HP_PROZENT_SCHWELLE        = 100      -- ab welchem HP-Prozent kaufen?
+local MAXIMALE_RUSTUNG           = 175      -- Maximaler Armor-Wert
+local RUSTUNGS_PROZENT_SCHWELLE  = 43       -- ab welchem Armor-Prozent kaufen?
+local RUSTUNGS_SEQUENZ           = { "[High-Medium Armor]" }
+local PAUSE_ZWISCHEN_KAUFEN      = 0.5      -- Sek. zwischen Clicks
+local PADS_PFAD                  = game:GetService("Workspace").MAP.BuyPads
 
-local gui = Instance.new("ScreenGui")
-gui.Name = "ArmorBotUI"
-gui.ResetOnSpawn = false
-gui.Parent = player:WaitForChild("PlayerGui")
+local gefundenePads = {}
+local isBuying = false
 
-local toggleButton = Instance.new("TextButton")
-toggleButton.Size = UDim2.new(0, 200, 0, 40)
-toggleButton.Position = UDim2.new(0, 10, 0.5, -20)
-toggleButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleButton.Font = Enum.Font.GothamBold
-toggleButton.TextSize = 14
-toggleButton.Text = "Armor Spammer Enabled"
-toggleButton.BackgroundTransparency = 0.2
-toggleButton.Parent = gui
-
-local introLabel = Instance.new("TextLabel")
-introLabel.Size = UDim2.new(0, 400, 0, 60)
-introLabel.Position = UDim2.new(0.5, -200, 0.4, 0)
-introLabel.BackgroundTransparency = 1
-introLabel.TextTransparency = 1
-introLabel.Text = "Script made by Schmeckt"
-introLabel.TextColor3 = Color3.new(1, 1, 1)
-introLabel.Font = Enum.Font.GothamBlack
-introLabel.TextSize = 30
-introLabel.Parent = gui
-
-local sound = Instance.new("Sound")
-sound.SoundId = "rbxassetid://3601621507"
-sound.Volume = 1
-sound.Parent = gui
-
-
-local dragging, dragInput, mousePos, framePos = false, nil, nil, nil
-
-local function updateInput(input)
-    local delta = input.Position - mousePos
-    toggleButton.Position = UDim2.new(0, framePos.X + delta.X, 0, framePos.Y + delta.Y)
+if not fireclickdetector then
+    warn("FEHLER: 'fireclickdetector' nicht unterstützt.")
+    return
 end
 
-toggleButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging, mousePos, framePos = true, input.Position, Vector2.new(toggleButton.Position.X.Offset, toggleButton.Position.Y.Offset)
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then dragging = false end
-        end)
-    end
-end)
-
-toggleButton.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then updateInput(input) end
-end)
-
-
-task.delay(0.5, function()
-    sound:Play()
-    for i = 1, 20 do
-        introLabel.TextTransparency = 1 - (i / 20)
-        task.wait(0.03)
-    end
-    task.wait(5)
-    for i = 1, 20 do
-        introLabel.TextTransparency = i / 20
-        task.wait(0.03)
-    end
-    introLabel:Destroy()
-    sound:Destroy()
-end)
-
-
--- HIER KANNST DU DIE WERTE ANPASSEN
-local HP_PROZENT_SCHWELLE = 100 
-local MAXIMALE_RUSTUNG = 175 -- Geändert auf 175
-local RUSTUNGS_PROZENT_SCHWELLE = 43 
-local RUSTUNGS_SEQUENZ = { "[High-Medium Armor]" }
-local PAUSE_ZWISCHEN_KAUFEN = 0.5 
-local PADS_PFAD = game:GetService("Workspace").MAP.BuyPads
-
-local gefundenePads, isBuying = {}, false
-
-if not fireclickdetector then return print("FEHLER: 'fireclickdetector' nicht unterstützt.") end
-
+-- Pads initialisieren
 local function initialisierePads()
     for i, name in ipairs(RUSTUNGS_SEQUENZ) do
         local pad = PADS_PFAD:FindFirstChild(name)
         if pad and pad:FindFirstChild("ClickDetector") then
             gefundenePads[i] = pad.ClickDetector
         else
-            return print("FEHLER: Pad für '" .. name .. "' nicht initialisiert.")
+            warn("FEHLER: Pad für '" .. name .. "' nicht initialisiert.")
+            return false
         end
     end
     return true
 end
 
+-- komplette Kaufsequenz durchklicken
 local function kaufeKompletteSequenz()
     if not isScriptActive or isBuying then return end
     isBuying = true
-    print("-> KAUFBEDINGUNG ERFÜLLT! Kaufe " .. RUSTUNGS_SEQUENZ[1] .. "...")
-    for i, clicker in ipairs(gefundenePads) do
+    print("-> KAUFBEDINGUNG ERFÜLLT! Kaufe " .. (RUSTUNGS_SEQUENZ[1] or "Armor") .. "...")
+
+    for _, clicker in ipairs(gefundenePads) do
         if not isScriptActive then
             isBuying = false
             return
@@ -115,57 +48,58 @@ local function kaufeKompletteSequenz()
         fireclickdetector(clicker)
         task.wait(PAUSE_ZWISCHEN_KAUFEN)
     end
+
     task.wait(1)
     isBuying = false
 end
 
-
+-- Überwachung von HP & Armor
 local function starteUberwachung()
     task.spawn(function()
         while true do
-            task.wait(0.2) 
+            task.wait(0.2)
 
-            if isScriptActive and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            if isScriptActive and player.Character then
                 local character = player.Character
-                local humanoid = character.Humanoid
-                
-                local aktuellerHPProzent = (humanoid.Health / humanoid.MaxHealth) * 100
-                local aktuellerRustungswert = character:GetAttribute("Armor") or 0
-                local aktuellerRustungProzent = (aktuellerRustungswert / MAXIMALE_RUSTUNG) * 100
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
 
-                if (aktuellerHPProzent < HP_PROZENT_SCHWELLE) or (aktuellerRustungProzent < RUSTUNGS_PROZENT_SCHWELLE) then
-                    kaufeKompletteSequenz()
+                if humanoid and humanoid.Health > 0 then
+                    local aktuellerHPProzent = (humanoid.Health / humanoid.MaxHealth) * 100
+
+                    local aktuellerRustungswert  = character:GetAttribute("Armor") or 0
+                    local aktuellerRustungProzent = (aktuellerRustungswert / MAXIMALE_RUSTUNG) * 100
+
+                    if (aktuellerHPProzent < HP_PROZENT_SCHWELLE)
+                    or (aktuellerRustungProzent < RUSTUNGS_PROZENT_SCHWELLE) then
+                        kaufeKompletteSequenz()
+                    end
                 end
             end
         end
     end)
 end
 
-
+-- Ein/Aus-Toggle nur über Taste G
 local function toggleScriptActivity()
     isScriptActive = not isScriptActive
     if isScriptActive then
-        toggleButton.Text = "Armor Spammer Enabled"
         print("### Rüstungs-Bot AKTIVIERT ###")
     else
-        toggleButton.Text = "Armor Spammer Disabled"
         print("### Rüstungs-Bot DEAKTIVIERT ###")
     end
 end
 
-toggleButton.MouseButton1Click:Connect(toggleScriptActivity)
-
-UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
-    if gameProcessedEvent then return end
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode.G then
         toggleScriptActivity()
     end
 end)
 
-
+-- Start
 if initialisierePads() then
-    starteUberwachung() 
-    print("-> Rüstungs-Bot bereit. Steuerung: [G] oder GUI-Button.")
+    starteUberwachung()
+    print("-> Rüstungs-Bot bereit. Steuerung: Taste [G].")
 else
-    print("Skript gestoppt, da Pads nicht gefunden wurden.")
+    warn("Skript gestoppt, da Pads nicht gefunden wurden.")
 end
