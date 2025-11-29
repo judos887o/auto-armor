@@ -1,44 +1,86 @@
---// ARMOR BOT CLEAN (OHNE GUI & INTRO) //--
+--// ARMOR BOT CLEAN (OHNE GUI & INTRO, OHNE DEBUGS) //--
 
 local UserInputService = game:GetService("UserInputService")
-local player = game:GetService("Players").LocalPlayer
-local isScriptActive = true
+local Workspace       = game:GetService("Workspace")
+local player          = game:GetService("Players").LocalPlayer
+local isScriptActive  = true
 
 -- HIER KANNST DU DIE WERTE ANPASSEN
 local HP_PROZENT_SCHWELLE        = 100      -- ab welchem HP-Prozent kaufen?
 local MAXIMALE_RUSTUNG           = 175      -- Maximaler Armor-Wert
 local RUSTUNGS_PROZENT_SCHWELLE  = 43       -- ab welchem Armor-Prozent kaufen?
-local RUSTUNGS_SEQUENZ           = { "[High-Medium Armor]" }
+local RUSTUNGS_SEQUENZ           = { "[High-Medium Armor]" } -- Primärname
 local PAUSE_ZWISCHEN_KAUFEN      = 0.5      -- Sek. zwischen Clicks
-local PADS_PFAD                  = game:GetService("Workspace").MAP.BuyPads
+
+----------------------------------------------------------------
+-- PADS-FOLDER AUTOMATISCH SUCHEN
+----------------------------------------------------------------
+local function findPadsFolder()
+    local map = Workspace:FindFirstChild("MAP") or Workspace:FindFirstChild("Map")
+    if map and map:FindFirstChild("Pads") then
+        return map.Pads
+    end
+    for _, inst in ipairs(Workspace:GetDescendants()) do
+        if inst:IsA("Folder") and inst.Name == "Pads" then
+            return inst
+        end
+    end
+    return nil
+end
+
+local PADS_PFAD = findPadsFolder()
+if not PADS_PFAD then
+    return
+end
 
 local gefundenePads = {}
 local isBuying = false
 
 if not fireclickdetector then
-    warn("FEHLER: 'fireclickdetector' nicht unterstützt.")
     return
 end
 
+----------------------------------------------------------------
+-- HILFSFUNKTION: PAD NACH MEHREREN NAMEN SUCHEN
+----------------------------------------------------------------
+local function findPadWithFallback(padsFolder, primaryName)
+    local nameList = { primaryName }
+
+    if primaryName == "[High-Medium Armor]" then
+        table.insert(nameList, "[Medium Armor]")
+    end
+
+    for _, name in ipairs(nameList) do
+        local pad = padsFolder:FindFirstChild(name)
+        if pad and pad:FindFirstChild("ClickDetector") then
+            return pad
+        end
+    end
+
+    return nil
+end
+
+----------------------------------------------------------------
 -- Pads initialisieren
+----------------------------------------------------------------
 local function initialisierePads()
     for i, name in ipairs(RUSTUNGS_SEQUENZ) do
-        local pad = PADS_PFAD:FindFirstChild(name)
-        if pad and pad:FindFirstChild("ClickDetector") then
+        local pad = findPadWithFallback(PADS_PFAD, name)
+        if pad then
             gefundenePads[i] = pad.ClickDetector
         else
-            warn("FEHLER: Pad für '" .. name .. "' nicht initialisiert.")
             return false
         end
     end
     return true
 end
 
+----------------------------------------------------------------
 -- komplette Kaufsequenz durchklicken
+----------------------------------------------------------------
 local function kaufeKompletteSequenz()
     if not isScriptActive or isBuying then return end
     isBuying = true
-    print("-> KAUFBEDINGUNG ERFÜLLT! Kaufe " .. (RUSTUNGS_SEQUENZ[1] or "Armor") .. "...")
 
     for _, clicker in ipairs(gefundenePads) do
         if not isScriptActive then
@@ -53,7 +95,9 @@ local function kaufeKompletteSequenz()
     isBuying = false
 end
 
+----------------------------------------------------------------
 -- Überwachung von HP & Armor
+----------------------------------------------------------------
 local function starteUberwachung()
     task.spawn(function()
         while true do
@@ -64,10 +108,9 @@ local function starteUberwachung()
                 local humanoid = character:FindFirstChildOfClass("Humanoid")
 
                 if humanoid and humanoid.Health > 0 then
-                    local aktuellerHPProzent = (humanoid.Health / humanoid.MaxHealth) * 100
-
-                    local aktuellerRustungswert  = character:GetAttribute("Armor") or 0
-                    local aktuellerRustungProzent = (aktuellerRustungswert / MAXIMALE_RUSTUNG) * 100
+                    local aktuellerHPProzent       = (humanoid.Health / humanoid.MaxHealth) * 100
+                    local aktuellerRustungswert    = character:GetAttribute("Armor") or 0
+                    local aktuellerRustungProzent  = (aktuellerRustungswert / MAXIMALE_RUSTUNG) * 100
 
                     if (aktuellerHPProzent < HP_PROZENT_SCHWELLE)
                     or (aktuellerRustungProzent < RUSTUNGS_PROZENT_SCHWELLE) then
@@ -79,14 +122,11 @@ local function starteUberwachung()
     end)
 end
 
+----------------------------------------------------------------
 -- Ein/Aus-Toggle nur über Taste G
+----------------------------------------------------------------
 local function toggleScriptActivity()
     isScriptActive = not isScriptActive
-    if isScriptActive then
-        print("### Rüstungs-Bot AKTIVIERT ###")
-    else
-        print("### Rüstungs-Bot DEAKTIVIERT ###")
-    end
 end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -96,10 +136,9 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
+----------------------------------------------------------------
 -- Start
+----------------------------------------------------------------
 if initialisierePads() then
     starteUberwachung()
-    print("-> Rüstungs-Bot bereit. Steuerung: Taste [G].")
-else
-    warn("Skript gestoppt, da Pads nicht gefunden wurden.")
 end
