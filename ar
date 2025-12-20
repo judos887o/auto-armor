@@ -17,11 +17,11 @@ local PAUSE_ZWISCHEN_KAUFEN      = 0.5      -- Sek. zwischen Clicks
 ----------------------------------------------------------------
 local function findPadsFolder()
     local map = Workspace:FindFirstChild("MAP") or Workspace:FindFirstChild("Map")
-    if map and map:FindFirstChild("Pads") then
-        return map.Pads
+    if map and map:FindFirstChild("BuyPads") then
+        return map.BuyPads
     end
     for _, inst in ipairs(Workspace:GetDescendants()) do
-        if inst:IsA("Folder") and inst.Name == "Pads" then
+        if inst:IsA("Folder") and inst.Name == "BuyPads" then
             return inst
         end
     end
